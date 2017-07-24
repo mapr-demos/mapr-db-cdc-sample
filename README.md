@@ -18,16 +18,13 @@ The steps to build the CDC application are:
 
 In this example you will use a MapR-DB JSON table named `/demo_table` that contains user information such as *first name*, *last name*, *age*, *email* and *address*. The Application (`FtsAndGeoServiceWithCDC`) analyze the events coming from the changelog to post new messages when the first and/or last names or when the address have been created or modified, or when a document is deleted. The sample application flow is:
 
-![Application Flow][./doc/sample-app-flow.png]
-
+![Application Flow](https://github.com/mapr-demos/mapr-db-cdc-sample/blob/master/doc/sample-app-flow.png "Application Flow")
 
 
 The messages posted by the application could then be consumed by new services to:
 
 * index names into a full text index to support advanced queries like soundex, fuzzy search, ...
 * get the latitude and longitude from the address and save it back into the MapR-DB document.
-
-
 
 
 **Prerequisites**
