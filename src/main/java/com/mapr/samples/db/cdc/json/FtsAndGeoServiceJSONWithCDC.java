@@ -1,4 +1,4 @@
-package com.mapr.samples.db.cdc;
+package com.mapr.samples.db.cdc.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,14 +21,14 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 
-public class FtsAndGeoServiceWithCDC {
+public class FtsAndGeoServiceJSONWithCDC {
 
-  private static String CHANGE_LOG = "/demo_changelog:demo_table";
+  private static String CHANGE_LOG = "/demo_changelog:demo_table_json";
   private static String FTS_TOPIC = "/demo_app_stream:fts_service";
   private static String GEOS_TOPIC = "/demo_app_stream:geo_service";
   private static ObjectMapper jsonMapper = new ObjectMapper();
 
-
+  @SuppressWarnings("Duplicates")
   public static void main(String[] args) {
 
     System.out.println("==== Start Application ===");
@@ -44,7 +44,7 @@ public class FtsAndGeoServiceWithCDC {
 
     // Consumer configuration
     Properties consumerProperties = new Properties();
-    consumerProperties.setProperty("group.id", "cdc.consumer.demo_table.fts_geo");
+    consumerProperties.setProperty("group.id", "cdc.consumer.demo_table.json.fts_geo");
     consumerProperties.setProperty("enable.auto.commit", "true");
     consumerProperties.setProperty("auto.offset.reset", "latest");
     consumerProperties.setProperty("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
@@ -102,6 +102,8 @@ public class FtsAndGeoServiceWithCDC {
     ObjectNode fieldToIndex = jsonMapper.createObjectNode();
     indexingMessage.put("_id", docId);
     indexingMessage.put("operation", changeDataRecord.getType().toString());
+    indexingMessage.put("type", "json");
+
 
 
     // Create JSON Message for the Address Service
@@ -109,6 +111,7 @@ public class FtsAndGeoServiceWithCDC {
     boolean sendAddressMessage = false; // only send the message if address is part of the operation
     addressMessage.put("_id", docId);
     addressMessage.put("operation", changeDataRecord.getType().toString());
+    indexingMessage.put("type", "json");
 
 
     // Use the ChangeNode Iterator to capture all the individual changes

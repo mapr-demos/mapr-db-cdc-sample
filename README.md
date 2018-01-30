@@ -16,7 +16,7 @@ The steps to build the CDC application are:
 1. Create a consumer application to process database events
 
 
-In this example you will use a MapR-DB JSON table named `/demo_table` that contains user information such as *first name*, *last name*, *age*, *email* and *address*. The Application (`FtsAndGeoServiceWithCDC`) analyze the events coming from the changelog to post new messages when the first and/or last names or when the address have been created or modified, or when a document is deleted. The sample application flow is:
+In this example you will use a MapR-DB JSON table named `/demo_table_json` that contains user information such as *first name*, *last name*, *age*, *email* and *address*. The Application (`FtsAndGeoServiceWithCDC`) analyze the events coming from the changelog to post new messages when the first and/or last names or when the address have been created or modified, or when a document is deleted. The sample application flow is:
 
 ![Application Flow](https://github.com/mapr-demos/mapr-db-cdc-sample/blob/master/doc/sample-app-flow.png "Application Flow")
 
@@ -29,7 +29,7 @@ The messages posted by the application could then be consumed by new services to
 
 **Prerequisites**
 
-* MapR Converged Data Platform 6.0 Beta
+* MapR Converged Data Platform 6.0 
 * JDK 8
 * Maven 3.x
 
@@ -45,7 +45,7 @@ This project uses the same table that the one used in the [MapR-DB JSON and OJAI
 If the table does not exist already, open a terminal window on your MapR 6.0 Cluster, and run the following command to create a JSON Table:
 
 ```
-$ maprcli table create -path /demo_table -tabletype json
+$ maprcli table create -path /demo_table_json -tabletype json
 ```
 
 This command has created a new MapR-DB JSON Table, note that it is also possible to use MapR-DB CDC on binary tables, but this example is based on JSON table.
@@ -73,6 +73,7 @@ This command:
 In this application the database events are process by a consumer that publish new message on application topics that can be consumes by new services. Create the application topics:
 
 ```
+
 $ maprcli stream create -path /demo_app_stream -produceperm p -consumeperm p -topicperm p
 
 $ maprcli stream topic create  -path /demo_app_stream -topic fts_service -partitions 3
@@ -90,10 +91,10 @@ You have created a JSON table, and changelog stream, let's now use the `maprcli`
  In a terminal  enter the following command:
  
  ```
- $ maprcli table changelog add -path /demo_table -changelog /demo_changelog:demo_table 
+ $ maprcli table changelog add -path /demo_table_json -changelog /demo_changelog:demo_table_json 
  ```
  
- This command associate the `demo_table` table events with the `/demo_changelog:demo_table` topic.
+ This command associate the `demo_table_json` table events with the `/demo_changelog:demo_table_json` topic.
  
  
  
@@ -119,7 +120,7 @@ where mapr60 is one of the nodes of your cluster.
 Run the CDC Application
 
 ```
-$ java -cp maprdb-cdc-sample-1.0-SNAPSHOT.jar:`mapr clientclasspath` com.mapr.samples.db.cdc.FtsAndGeoServiceWithCDC
+$ java -cp maprdb-cdc-sample-1.0-SNAPSHOT.jar:`mapr clientclasspath` com.mapr.samples.db.cdc.json.FtsAndGeoServiceJSONWithCDC
 ```
 
 Open a new terminal and run the following commands, to create, update and delete documents
@@ -127,13 +128,13 @@ Open a new terminal and run the following commands, to create, update and delete
 ```
 $ mapr dbshell
 
-maprdb mapr:> insert /demo_table --value '{"_id":"user0010", "firstName" : "Matt", "lastName" : "Porker" , "age" : 34 }'
+maprdb mapr:> insert /demo_table_json --value '{"_id":"user0010", "firstName" : "Matt", "lastName" : "Porker" , "age" : 34 }'
 
-maprdb mapr:> update /demo_table --id user0010 --m '{ "$set":[  { "address":{"city":"San Jose","state":"CA","street":"320 Blossom Hill Road","zipCode":9519} }] }'
+maprdb mapr:> update /demo_table_json --id user0010 --m '{ "$set":[  { "address":{"city":"San Jose","state":"CA","street":"320 Blossom Hill Road","zipCode":9519} }] }'
 
-maprdb mapr:> update /demo_table --id user0010 --m '{ "$set":[ {"lastName":"Parker"},  { "address":{"city":"San Jose","state":"CA","street":"330 Blossom Hill Road","zipCode":9519} }] }'
+maprdb mapr:> update /demo_table_json --id user0010 --m '{ "$set":[ {"lastName":"Parker"},  { "address":{"city":"San Jose","state":"CA","street":"330 Blossom Hill Road","zipCode":9519} }] }'
 
-maprdb mapr:> delete /demo_table --id user0010 
+maprdb mapr:> delete /demo_table_json --id user0010 
 
 ```
 
@@ -143,7 +144,7 @@ The first operation insert a new document, and the application capture the first
 
 ```
 Document Inserted "user0010"
-  Posting to FTS Service {"_id":"user0010","operation":"RECORD_INSERT","fields_to_index":{"firstName":"Matt","lastName":"Porker"}}
+  Posting to FTS Service {"_id":"user0010","operation":"RECORD_INSERT", "type":"json","fields_to_index":{"firstName":"Matt","lastName":"Porker"}}
 ``` 
 
 The next operation add the address to the user profile, doing an update do the document; the CDC application capture the address and send it to the `/demo_app_stream:geo_service`.
@@ -177,7 +178,7 @@ MapR-DB CDC Dependency
     <dependency>
       <groupId>com.mapr.db</groupId>
       <artifactId>maprdb-cdc</artifactId>
-      <version>6.0.0-mapr-beta</version>
+      <version>6.0.0-mapr</version>
     </dependency>
 ```
 
@@ -192,7 +193,7 @@ The first thing to do is to configure the consumer using Java properties. This c
 ```java
     // Consumer configuration
     Properties consumerProperties = new Properties();
-    consumerProperties.setProperty("group.id", "cdc.consumer.demo_table.fts_geo");
+    consumerProperties.setProperty("group.id", "cdc.consumer.demo_table.json.fts_geo");
     consumerProperties.setProperty("enable.auto.commit", "true");
     consumerProperties.setProperty("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
     consumerProperties.setProperty("value.deserializer", "com.mapr.db.cdc.ChangeDataRecordDeserializer");
@@ -211,7 +212,7 @@ Create the consumer and subscribe to the Changelog, that is a MapR-ES topic.
 ```java
     // Consumer used to consume MapR-DB CDC events
     KafkaConsumer<byte[], ChangeDataRecord> consumer = new KafkaConsumer<byte[], ChangeDataRecord>(consumerProperties);
-    consumer.subscribe(Arrays.asList("/demo_changelog:demo_table"));
+    consumer.subscribe(Arrays.asList("/demo_changelog:demo_table_json"));
 
 ```
 
@@ -340,6 +341,213 @@ To process the document update the code:
   * `changeNode.getString()` for the first and last name
   * `changeNode.getMap()` for the address
 
+
+## Create a CDC application for MapR-DB Binary table
+
+
+We will use the same approach for the binary table:
+
+* a new topic in the changelog for the binary table events : `/demo_changelog:demo_table_binary`
+* a new CDC consumer that will listen to the changes and post changes to the FTS topic : `demo_app_stream:fts_service`
+
+For this example we will limit the events to the `default:firstName` and `default:lastName` columns.
+
+
+### 1- Create a MapR-DB Table and column family
+
+```
+$ maprcli table create -path /demo_table_binary -tabletype binary
+
+
+$ maprcli table cf create -path /demo_table_binary -cfname default
+
+   ```
+
+### 2- Adding the Change Log to the table
+
+You have created a JSON table, and changelog stream, let's now use the `maprcli` command to capture the events and send them to the streams.
+ In a terminal  enter the following command:
+ 
+ ```
+ $ maprcli table changelog add -path /demo_table_binary -changelog /demo_changelog:demo_table_binary 
+ 
+ ```
+ 
+ This command associate the `demo_table_binary` table events with the `/demo_changelog:demo_table_binary` topic.
+ 
+
+### 3- Build and Run the MapR-DB CDC Application
+
+Build the application using Apache Maven:
+
+```
+$ mvn clean package
+```
+
+Copy the file to your cluster:
+
+```
+$ scp ./target/maprdb-cdc-sample-1.0-SNAPSHOT.jar mapr@mapr60:/home/mapr/ 
+```
+
+where mapr60 is one of the nodes of your cluster.
+
+
+Run the CDC Application
+
+```
+$ java -cp maprdb-cdc-sample-1.0-SNAPSHOT.jar:`mapr clientclasspath`:`hbase classpath` com.mapr.samples.db.cdc.binary.FtsAndGeoServiceBinaryWithCDC
+```
+
+Open a new terminal and run the following commands, to create, update and delete rows
+
+```
+$ hbase shell
+
+hbase(main):001:0> put '/demo_table_binary' , 'user010' , 'default:firstName', 'John' 
+
+hbase(main):002:0> put '/demo_table_binary' , 'user010' , 'default:lastName', 'Doe' 
+
+hbase(main):003:0> deleteall '/demo_table_binary' , 'user010'
+
+```
+
+The CDC application should print the following information:
+
+```
+	 Document Updated user010
+	   Posting to FTS Service {"_id":"user010","operation":"RECORD_UPDATE","type":"binary","fields_to_index":{"firstName":"John"}}
+
+	 Document Updated user010
+	   Posting to FTS Service {"_id":"user010","operation":"RECORD_UPDATE","type":"binary","fields_to_index":{"lastName":"Doe"}}
+
+	 Document Deleted user010
+	   Posting to FTS Service {"_id":"user010","operation":"RECORD_DELETE"}
+```
+
+
+### 4- Application Code
+
+The code used to process binary table events is very similar to the JSON table one, and available in the `FtsAndGeoServiceBinaryWithCDC.java` class.
+
+### MapR-DB Binary Maven Dependency
+
+Add the following dependency to your project:
+
+```xml
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-client</artifactId>
+      <version>1.1.8-mapr-1710</version>
+    </dependency>
+```
+
+This will be used to deserialized the table content that is stored as Bytes.
+
+#### 1. Create a MapR Streams Consumer
+
+```java
+
+    // Consumer configuration
+    Properties consumerProperties = new Properties();
+    consumerProperties.setProperty("group.id", "cdc.consumer.demo_table.binary.fts");
+    consumerProperties.setProperty("enable.auto.commit", "true");
+    consumerProperties.setProperty("auto.offset.reset", "latest");
+    consumerProperties.setProperty("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+    consumerProperties.setProperty("value.deserializer", "com.mapr.db.cdc.ChangeDataRecordDeserializer");
+
+
+    // Consumer used to consume MapR-DB CDC events
+    KafkaConsumer<byte[], ChangeDataRecord> consumer = new KafkaConsumer<byte[], ChangeDataRecord>(consumerProperties);
+    consumer.subscribe(Arrays.asList("/demo_changelog:demo_table_binary"));
+
+```
+
+The properties are the same as any MapR-ES or Apache Kafka application:
+
+group.id that identies the group of consumer
+key.deserializer an array of bytes created by the CDC gateway
+value.deserializer the value deserializer, MapR CDC uses a optimized serialization format for all the events, so you must specify the com.mapr.db.cdc.ChangeDataRecordDeserializer deserializer.
+Create the consumer and subscribe to the Changelog, that is a MapR-ES topic.
+
+```java
+    // Consumer used to consume MapR-DB CDC events
+    KafkaConsumer<byte[], ChangeDataRecord> consumer = new KafkaConsumer<byte[], ChangeDataRecord>(consumerProperties);
+    consumer.subscribe(Arrays.asList("/demo_changelog:demo_table_binary"));
+```
+
+#### 2- Consume the events
+
+You can now listen to the event and process each ChangeDataRecord.
+
+```java
+
+    while (true) {
+      ConsumerRecords<byte[], ChangeDataRecord> changeRecords = consumer.poll(500);
+      Iterator<ConsumerRecord<byte[], ChangeDataRecord>> iter = changeRecords.iterator();
+
+      while (iter.hasNext()) {
+        ConsumerRecord<byte[], ChangeDataRecord> crec = iter.next();
+        // The ChangeDataRecord contains all the changes made to a document
+        ChangeDataRecord changeDataRecord = crec.value();
+
+        // get document ID from the binary key
+        String documentId = Bytes.toString(changeDataRecord.getId().getBinary().array());
+        ...
+        ...
+
+      }
+    }
+```
+
+In the iter.hasNext() loop, start by extracting:
+
+* the ChangeDataRecord using `crec.value()` method
+* the rowkey using `changeDataRecord.getId()`, to get the value as String you must convert it using the following code `Bytes.toString(changeDataRecord.getId().getBinary().array())`
+
+
+#### 3- Process Change Data Records
+
+It is now time to process the Change Data Records, based on the type of event (insert, update, delete), using the `changeDataRecord.getType()` method. You can use the `ChangeDataRecordType` class to check the type.
+
+**Processing Deletes**
+
+Look at the `deleteDocument()` method in the sample application.
+
+Processing a delete is a simple operation since the operation is based a single change data record, so you can directly get the document id using `changeDataRecord.getId()` and then process the document deletion.
+
+**Processing Inserts and Updates**
+
+Look at the `insertAndUpdateDocument()` method in the sample application.
+
+Document mutations are stored into a list of ChangeNodes, that you retrieve using the following code:
+
+```java
+    // Use the ChangeNode Iterator to capture all the individual changes
+    Iterator<KeyValue<FieldPath, ChangeNode>> cdrItr = changeDataRecord.iterator();
+    while (cdrItr.hasNext()) {
+      Map.Entry<FieldPath, ChangeNode> changeNodeEntry = cdrItr.next();
+      String fieldPathAsString = changeNodeEntry.getKey().asPathString();
+      ChangeNode changeNode = changeNodeEntry.getValue();
+
+      // when doing an update the database event is masde of one ChangeNode by field
+      if (fieldPathAsString.equalsIgnoreCase("default.firstName")) { // name of the field including column family
+        // extract the value as a string since we know that default.firstName is a string
+        fieldToIndex.put("firstName", Bytes.toString(changeNode.getBinary().array()));
+        sendIndexingMessage = true;
+      } else if (fieldPathAsString.equalsIgnoreCase("default.lastName")) {
+        fieldToIndex.put("lastName", Bytes.toString(changeNode.getBinary().array()));
+        sendIndexingMessage = true;
+      }
+    }
+```
+
+
+* get the iterator of ChangeNode using changeDataRecord.iterator() and loop on them
+retrieve the change node entry and for each of them to extract:
+* the updated field path using `changeNodeEntry.getKey().asPathString()`, in the contect of binary the valye is `column_family:column`, for example `default.firstName`.
+* the ChangeNode using `changeNodeEntry.getValue()` that contains the change information.
+* the values is a set of bytes in a binary table, so you need to convert it into a type that could be used by your target application, for example a String with ` Bytes.toString(changeNode.getBinary().array())`
 
 
 ## Conclusion
