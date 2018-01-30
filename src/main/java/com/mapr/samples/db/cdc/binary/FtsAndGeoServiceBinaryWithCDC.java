@@ -105,8 +105,23 @@ public class FtsAndGeoServiceBinaryWithCDC {
     indexingMessage.put("operation", changeDataRecord.getType().toString());
     indexingMessage.put("type", "binary");
 
+    // Use the ChangeNode Iterator to capture all the individual changes
+    Iterator<KeyValue<FieldPath, ChangeNode>> cdrItr = changeDataRecord.iterator();
+    while (cdrItr.hasNext()) {
+      Map.Entry<FieldPath, ChangeNode> changeNodeEntry = cdrItr.next();
+      String fieldPathAsString = changeNodeEntry.getKey().asPathString();
+      ChangeNode changeNode = changeNodeEntry.getValue();
 
-git
+      // when doing an update the database event is masde of one ChangeNode by field
+      if (fieldPathAsString.equalsIgnoreCase("default.firstName")) { // name of the field including column family
+        // extract the value as a string since we know that default.firstName is a string
+        fieldToIndex.put("firstName", Bytes.toString(changeNode.getBinary().array()));
+        sendIndexingMessage = true;
+      } else if (fieldPathAsString.equalsIgnoreCase("default.lastName")) {
+        fieldToIndex.put("lastName", Bytes.toString(changeNode.getBinary().array()));
+        sendIndexingMessage = true;
+      }
+    }
 
     if (sendIndexingMessage) {
       indexingMessage.set("fields_to_index", fieldToIndex);
